@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { FastifyInstance } from 'fastify';
-import { safePath } from '../middleware/safety';
+import { safePath, bodyPathSafetyHook } from '../middleware/safety';
 import { ServerOptions } from '../index';
 
 const DEFAULT_IGNORE = ['node_modules', '.git', '.DS_Store', '*.env', '.env*'];
@@ -82,6 +82,7 @@ async function buildTree(
 
 export function fsRoutes(app: FastifyInstance, options: ServerOptions) {
   const { rootDir, readonly, maxDepth, ignorePatterns } = options;
+  const bodyGuard = { preHandler: bodyPathSafetyHook(rootDir) };
 
   // GET /api/fs/tree
   app.get<{ Querystring: { depth?: string } }>('/tree', async (request) => {
@@ -120,7 +121,7 @@ export function fsRoutes(app: FastifyInstance, options: ServerOptions) {
   });
 
   // POST /api/fs/write
-  app.post<{ Body: { path: string; content: string } }>('/write', async (request, reply) => {
+  app.post<{ Body: { path: string; content: string } }>('/write', bodyGuard, async (request, reply) => {
     if (readonly) return reply.code(403).send({ error: 'Read-only mode' });
     const filePath = safePath(rootDir, request.body.path);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -129,7 +130,7 @@ export function fsRoutes(app: FastifyInstance, options: ServerOptions) {
   });
 
   // POST /api/fs/mkdir
-  app.post<{ Body: { path: string } }>('/mkdir', async (request, reply) => {
+  app.post<{ Body: { path: string } }>('/mkdir', bodyGuard, async (request, reply) => {
     if (readonly) return reply.code(403).send({ error: 'Read-only mode' });
     const dirPath = safePath(rootDir, request.body.path);
     await fs.mkdir(dirPath, { recursive: true });
@@ -137,7 +138,7 @@ export function fsRoutes(app: FastifyInstance, options: ServerOptions) {
   });
 
   // DELETE /api/fs/delete
-  app.delete<{ Body: { path: string } }>('/delete', async (request, reply) => {
+  app.delete<{ Body: { path: string } }>('/delete', bodyGuard, async (request, reply) => {
     if (readonly) return reply.code(403).send({ error: 'Read-only mode' });
     const targetPath = safePath(rootDir, request.body.path);
     await fs.rm(targetPath, { recursive: true, force: true });
@@ -145,7 +146,7 @@ export function fsRoutes(app: FastifyInstance, options: ServerOptions) {
   });
 
   // POST /api/fs/rename
-  app.post<{ Body: { oldPath: string; newPath: string } }>('/rename', async (request, reply) => {
+  app.post<{ Body: { oldPath: string; newPath: string } }>('/rename', bodyGuard, async (request, reply) => {
     if (readonly) return reply.code(403).send({ error: 'Read-only mode' });
     const oldPath = safePath(rootDir, request.body.oldPath);
     const newPath = safePath(rootDir, request.body.newPath);

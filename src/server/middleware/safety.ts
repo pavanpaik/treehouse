@@ -5,23 +5,37 @@ import { FastifyRequest, FastifyReply } from 'fastify';
  * Path traversal prevention middleware.
  * Ensures all resolved paths stay within the rootDir.
  */
+/**
+ * onRequest hook — validates query-string path params (available before body parsing).
+ */
 export function safetyMiddleware(rootDir: string) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    // Only validate paths on /api/fs routes
     if (!request.url.startsWith('/api/fs')) return;
 
     const query = request.query as Record<string, string>;
-    const body = request.body as Record<string, string> | null;
-
-    // Collect all path params from query or body
-    const pathsToCheck: string[] = [];
     for (const key of ['path', 'oldPath', 'newPath']) {
-      if (query[key]) pathsToCheck.push(query[key]);
-      if (body?.[key]) pathsToCheck.push(body[key]);
+      if (!query[key]) continue;
+      const resolved = path.resolve(rootDir, query[key]);
+      if (!resolved.startsWith(rootDir + path.sep) && resolved !== rootDir) {
+        reply.code(403).send({ error: 'Path traversal detected' });
+        return;
+      }
     }
+  };
+}
 
-    for (const relPath of pathsToCheck) {
-      const resolved = path.resolve(rootDir, relPath);
+/**
+ * preHandler hook — validates body path params (available after body parsing).
+ * Register this as a preHandler on write routes.
+ */
+export function bodyPathSafetyHook(rootDir: string) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as Record<string, string> | null;
+    if (!body) return;
+
+    for (const key of ['path', 'oldPath', 'newPath']) {
+      if (!body[key]) continue;
+      const resolved = path.resolve(rootDir, body[key]);
       if (!resolved.startsWith(rootDir + path.sep) && resolved !== rootDir) {
         reply.code(403).send({ error: 'Path traversal detected' });
         return;

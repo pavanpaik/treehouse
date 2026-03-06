@@ -8,13 +8,6 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'dist/client'),
     emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'monaco-editor': ['monaco-editor'],
-        },
-      },
-    },
   },
   server: {
     proxy: {
@@ -24,8 +17,5 @@ export default defineConfig({
         ws: true,
       },
     },
-  },
-  optimizeDeps: {
-    include: ['monaco-editor'],
   },
 });

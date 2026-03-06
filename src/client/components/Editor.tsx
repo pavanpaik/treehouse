@@ -23,19 +23,25 @@ function getLanguage(filePath: string): string {
 
 export function Editor({ path, content, onChange, onSave, isDirty }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<unknown>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null);
   const [monacoLoaded, setMonacoLoaded] = useState(false);
+  // Keep callback refs so Monaco's listener always calls the latest version
+  const onChangeRef = useRef(onChange);
+  const onSaveRef = useRef(onSave);
+  onChangeRef.current = onChange;
+  onSaveRef.current = onSave;
 
-  // Lazy-load Monaco
+  // Initialize Monaco once. Container is always rendered so ref is always populated.
   useEffect(() => {
     let cancelled = false;
 
-    import('monaco-editor').then((monaco) => {
+    import('../lib/monaco').then(({ monaco }) => {
       if (cancelled || !containerRef.current || editorRef.current) return;
 
       const editor = monaco.editor.create(containerRef.current, {
-        value: content,
-        language: path ? getLanguage(path) : 'plaintext',
+        value: '',
+        language: 'plaintext',
         theme: 'vs-dark',
         fontSize: 14,
         fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
@@ -47,79 +53,66 @@ export function Editor({ path, content, onChange, onSave, isDirty }: EditorProps
         padding: { top: 12 },
       });
 
+      // Use refs so these listeners always see the latest callbacks
       editor.onDidChangeModelContent(() => {
-        onChange(editor.getValue());
+        onChangeRef.current(editor.getValue());
       });
-
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, onSave);
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        onSaveRef.current();
+      });
 
       editorRef.current = editor;
       setMonacoLoaded(true);
+    }).catch(err => {
+      console.error('Monaco failed to load:', err);
     });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update content when file changes
+  // Sync content when file changes
   useEffect(() => {
     if (!monacoLoaded || !editorRef.current) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const editor = editorRef.current as any;
-    const current = editor.getValue();
-    if (current !== content) {
-      editor.setValue(content);
+    if (editorRef.current.getValue() !== content) {
+      editorRef.current.setValue(content);
     }
   }, [content, monacoLoaded]);
 
-  // Update language when file changes
+  // Update language when file path changes
   useEffect(() => {
     if (!monacoLoaded || !editorRef.current || !path) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const editor = editorRef.current as any;
-    import('monaco-editor').then((monaco) => {
-      monaco.editor.setModelLanguage(editor.getModel(), getLanguage(path));
+    import('../lib/monaco').then(({ monaco }) => {
+      monaco.editor.setModelLanguage(editorRef.current.getModel(), getLanguage(path));
     });
   }, [path, monacoLoaded]);
 
-  // Update save handler when it changes
-  useEffect(() => {
-    if (!monacoLoaded || !editorRef.current) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const editor = editorRef.current as any;
-    import('monaco-editor').then((monaco) => {
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, onSave);
-    });
-  }, [onSave, monacoLoaded]);
-
-  if (!path) {
-    return (
-      <div className="editor-empty">
-        <div className="editor-empty-content">
-          <div className="editor-empty-icon">🌳</div>
-          <h2>treehouse</h2>
-          <p>Select a file from the sidebar to start editing</p>
-          <p className="editor-empty-hint">Right-click in the tree to create files</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Always render the container so the ref is populated when Monaco initializes.
   return (
-    <div className="editor-wrapper">
-      <div className="editor-header">
-        <span className="editor-path">{path}</span>
-        {isDirty && <span className="editor-dirty">●</span>}
-        <button className="editor-save-btn" onClick={onSave} disabled={!isDirty}>
-          Save
-        </button>
-      </div>
-      <div ref={containerRef} className="monaco-container" />
-      {!monacoLoaded && (
-        <div className="editor-loading">Loading editor...</div>
+    <div className="editor-root">
+      {!path && (
+        <div className="editor-empty">
+          <div className="editor-empty-content">
+            <div className="editor-empty-icon">🌳</div>
+            <h2>treehouse</h2>
+            <p>Select a file from the sidebar to start editing</p>
+            <p className="editor-empty-hint">Right-click in the tree to create files</p>
+          </div>
+        </div>
       )}
+      <div className="editor-wrapper" style={{ display: path ? 'flex' : 'none' }}>
+        <div className="editor-header">
+          <span className="editor-path">{path ?? ''}</span>
+          {isDirty && <span className="editor-dirty">●</span>}
+          <button className="editor-save-btn" onClick={onSave} disabled={!isDirty}>
+            Save
+          </button>
+        </div>
+        <div ref={containerRef} className="monaco-container" />
+        {!monacoLoaded && (
+          <div className="editor-loading">Loading editor...</div>
+        )}
+      </div>
     </div>
   );
 }
