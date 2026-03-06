@@ -1,0 +1,44 @@
+{
+  "name": "@pavan/treehouse",
+  "version": "0.1.0",
+  "description": "npx-runnable local filesystem UI with file browser and Monaco editor",
+  "bin": {
+    "treehouse": "./dist/cli.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "dev": "concurrently \"vite\" \"tsx watch src/cli.ts .\"",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.4",
+    "@fastify/websocket": "^10.0.1",
+    "chokidar": "^3.6.0",
+    "commander": "^12.1.0",
+    "fastify": "^4.28.1",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "monaco-editor": "^0.50.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.15.7",
+    "typescript": "^5.5.2",
+    "vite": "^5.3.1"
+  }
+}
